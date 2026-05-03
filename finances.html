@@ -95,35 +95,61 @@
     </nav>
 
     <!-- Page Content -->
-    <div class="pt-20 pb-8 px-4">
+    <div class="pt-36 sm:pt-24 pb-8 px-4">
         <div class="max-w-7xl mx-auto">
-            <div class="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <h2 class="text-2xl font-bold text-gray-800 dark:text-white">Finances</h2>
-                <div class="flex space-x-2">
-                    <button onclick="openExpenseModal()" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors">
-                        <i class="fas fa-minus-circle mr-2"></i>Add Expense
-                    </button>
-                    <button onclick="showAllExpenses()" class="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors">
-                        <i class="fas fa-receipt mr-2"></i>View Expenses
-                    </button>
-                    <button onclick="showAllIncome()" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors">
-                        <i class="fas fa-chart-line mr-2"></i>View Income
-                    </button>
+            <!-- GLAVNI KONTEJNER: Na mobilnom kolona (jedno ispod drugog), na desktopu red (jedno pored drugog) -->
+            <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
+            
+                <!-- 1. FINANSIJE (Sada idu levo na desktopu) -->
+                <div class="w-full sm:w-auto">
+                    <div class="flex flex-row space-x-1 sm:space-x-2 w-full sm:w-auto justify-center">
+                        <!-- Add Expense -->
+                        <button onclick="openExpenseModal()"
+                            class="flex-1 sm:flex-none px-2 sm:px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors flex items-center justify-center">
+                            <i class="fas fa-minus-circle mr-1 sm:mr-2 text-xs sm:text-base"></i>
+                            <span class="text-[10px] sm:text-sm font-medium whitespace-nowrap">Add Expense</span>
+                        </button>
+            
+                        <!-- View Expenses -->
+                        <button onclick="showAllExpenses()"
+                            class="flex-1 sm:flex-none px-2 sm:px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors flex items-center justify-center">
+                            <i class="fas fa-receipt mr-1 sm:mr-2 text-xs sm:text-base"></i>
+                            <span class="text-[10px] sm:text-sm font-medium whitespace-nowrap">View Expenses</span>
+                        </button>
+            
+                        <!-- View Income -->
+                        <button onclick="showAllIncome()"
+                            class="flex-1 sm:flex-none px-2 sm:px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors flex items-center justify-center">
+                            <i class="fas fa-chart-line mr-1 sm:mr-2 text-xs sm:text-base"></i>
+                            <span class="text-[10px] sm:text-sm font-medium whitespace-nowrap">View Income</span>
+                        </button>
+                    </div>
                 </div>
-            </div>
-
-            <!-- Year Navigation -->
-            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-4 mb-6">
-                <div class="flex justify-between items-center">
-                    <button onclick="changeYear(-1)" class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
-                        <i class="fas fa-chevron-left mr-1"></i>Previous
-                    </button>
-                    <h3 class="text-xl font-bold text-gray-800 dark:text-white cursor-pointer hover:text-primary-600" onclick="goToCurrentYear()" title="Click to reset to current year">
-                        <span id="currentYearButton">2026</span> (Current Year)
-                    </h3>
-                    <button onclick="changeYear(1)" class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
-                        Next<i class="fas fa-chevron-right ml-1"></i>
-                    </button>
+            
+                <!-- 2. NAVIGACIJA PO GODINAMA (Sada ide desno na desktopu) -->
+                <div class="w-full sm:w-auto">
+                    <div
+                        class="grid grid-cols-3 sm:flex w-full sm:w-auto bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                        <!-- PREVIOUS YEAR -->
+                        <button onclick="changeYear(-1)"
+                            class="flex items-center justify-center py-3 px-6 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 border-r border-gray-200 dark:border-gray-700 transition-colors">
+                            <i class="fas fa-chevron-left sm:mr-2"></i>
+                            <span class="hidden sm:inline text-sm font-medium">Previous</span>
+                        </button>
+            
+                        <!-- CURRENT YEAR -->
+                        <button onclick="goToCurrentYear()"
+                            class="flex items-center justify-center py-3 px-8 text-base font-bold bg-primary-600 sm:bg-transparent text-white sm:text-primary-600 hover:bg-primary-700 sm:hover:bg-gray-50 dark:sm:hover:bg-gray-700 border-r border-gray-200 dark:border-gray-700 transition-colors uppercase tracking-wider">
+                            <span id="currentYearButton">2026</span>
+                        </button>
+            
+                        <!-- NEXT YEAR -->
+                        <button onclick="changeYear(1)"
+                            class="flex items-center justify-center py-3 px-6 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                            <span class="hidden sm:inline text-sm font-medium">Next</span>
+                            <i class="fas fa-chevron-right sm:ml-2"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -133,7 +159,7 @@
                     <table class="w-full">
                         <thead class="bg-gray-50 dark:bg-gray-700">
                             <tr>
-                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600 dark:text-gray-300"><span id="tableYearHeader">2026</span> - Month</th>
+                                <th class="px-4 py-3 text-left text-base font-bold text-gray-600 dark:text-gray-300"><span id="tableYearHeader">2026</span></th>
                                 <th class="px-4 py-3 text-right text-sm font-semibold text-gray-600 dark:text-gray-300">Income</th>
                                 <th class="px-4 py-3 text-right text-sm font-semibold text-gray-600 dark:text-gray-300">Expense</th>
                                 <th class="px-4 py-3 text-right text-sm font-semibold text-gray-600 dark:text-gray-300">Profit</th>
