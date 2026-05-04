@@ -592,18 +592,28 @@
                     .get();
 
                 if (financeSnapshot.empty) {
-                    financeData.date = firebase.firestore.FieldValue.serverTimestamp();
-                    await financesRef.add(financeData);
+                    if (appointmentPrice > 0) {
+                        financeData.date = firebase.firestore.FieldValue.serverTimestamp();
+                        await financesRef.add(financeData);
+                    }
                 } else {
-                    financeSnapshot.forEach(doc => doc.ref.update(financeData));
+                    financeSnapshot.forEach(doc => {
+                        if (appointmentPrice > 0) {
+                            doc.ref.update(financeData);
+                        } else {
+                            doc.ref.delete();
+                        }
+                    });
                 }
 
                 alert('Appointment updated!');
             } else {
                 const appointmentRef = await db.collection('appointments').add(appointmentData);
                 financeData.appointmentId = appointmentRef.id;
-                financeData.date = firebase.firestore.FieldValue.serverTimestamp();
-                await financesRef.add(financeData);
+                if (appointmentPrice > 0) {
+                    financeData.date = firebase.firestore.FieldValue.serverTimestamp();
+                    await financesRef.add(financeData);
+                }
                 alert('Appointment saved!');
             }
 

@@ -669,6 +669,37 @@
             };
             
             await db.collection('appointments').doc(editingAppointmentId).update(appointmentData);
+
+            const financeSnapshot = await db.collection('finances')
+                .where('appointmentId', '==', editingAppointmentId)
+                .where('type', '==', 'income')
+                .get();
+
+            if (financeSnapshot.empty) {
+                if (appointmentData.price > 0) {
+                    await db.collection('finances').add({
+                        patientId: currentPatientId || null,
+                        amount: appointmentData.price,
+                        type: 'income',
+                        category: 'Income',
+                        note: appointmentData.note,
+                        dateString: appointments.find(a => a.id === editingAppointmentId)?.date || '',
+                        appointmentId: editingAppointmentId,
+                        date: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                }
+            } else {
+                financeSnapshot.forEach(doc => {
+                    if (appointmentData.price > 0) {
+                        doc.ref.update({
+                            amount: appointmentData.price,
+                            note: appointmentData.note
+                        });
+                    } else {
+                        doc.ref.delete();
+                    }
+                });
+            }
             
             closeEditAppointmentPatientModal();
             viewPatient(currentPatientId);

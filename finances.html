@@ -771,7 +771,7 @@
                 tbody.innerHTML = filtered.map(f => `
                     <tr>
                         <td class="px-4 py-2 text-gray-800 dark:text-white">${f.dateString}</td>
-                        <td class="px-4 py-2 text-gray-600 dark:text-gray-300">${f.category}</td>
+                        <td class="px-4 py-2 text-gray-600 dark:text-gray-300">${f.note || '-'}</td>
                         <td class="px-4 py-2 text-right text-red-600 dark:text-red-400">$${parseFloat(f.amount).toFixed(2)}</td>
                         <td class="px-4 py-2 text-right">
                             <button onclick="editExpense('${f.id}')" class="px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded mr-2">
@@ -825,7 +825,7 @@
             const today = new Date().toISOString().split('T')[0];
             
             const yearFinanceIncome = finances
-                .filter(f => f.type === 'income' && f.dateString && f.dateString.startsWith(currentYear.toString()))
+                .filter(f => f.type === 'income' && parseFloat(f.amount || 0) > 0 && f.dateString && f.dateString.startsWith(currentYear.toString()))
                 .map(f => {
                     const linkedPatient = patients.find(p => p.id === f.patientId);
                     const patientFullName = linkedPatient ? `${linkedPatient.firstName || ''} ${linkedPatient.lastName || ''}`.trim() : null;
