@@ -505,5 +505,48 @@
         // Initialize
         renderCalendar();
     </script>
+    <!-- Firebase App (glavni SDK) -->
+    <script type="module">
+        console.log("1. Test - Da li se uopšte učitava?");
+        // 1. Uvozimo osnovni Firebase i Firestore (bazu)
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-firestore.js";
+
+        // 2. Tvoj lični config koji si upravo kopirao
+        const firebaseConfig = {
+            apiKey: "AIzaSyCy7xpmM0VMorZ_GPb6A5LOOr0TQVKy_fM",
+            authDomain: "dental-clinic-manager-90780.firebaseapp.com",
+            projectId: "dental-clinic-manager-90780",
+            storageBucket: "dental-clinic-manager-90780.firebasestorage.app",
+            messagingSenderId: "79958386334",
+            appId: "1:79958386334:web:c1d60d26cb0fd1682c7d8f"
+        };
+
+        // 3. Inicijalizacija
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // Čuvamo bazu u globalni prozor da bi tvoji dugmići mogli da je vide
+        window.db = db;
+
+        // 4. Glavna funkcija za dodavanje podataka (Income/Expense)
+        window.addTransaction = async function (type, amount, category) {
+            try {
+                const docRef = await addDoc(collection(window.db, "finances"), {
+                    type: type, // 'income' ili 'expense'
+                    amount: parseFloat(amount),
+                    category: category,
+                    date: serverTimestamp()
+                });
+                console.log("✅ Uspešno upisano u Firebase! ID:", docRef.id);
+                alert("Podatak je uspešno sačuvan u oblaku!");
+            } catch (e) {
+                console.error("❌ Greška pri upisu:", e);
+                alert("Došlo je do greške. Proveri konzolu.");
+            }
+        };
+
+        console.log("🚀 Firebase sistem spreman! Možeš kucati test komandu.");
+    </script>
 </body>
 </html>
