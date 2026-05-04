@@ -29,6 +29,29 @@
         }
     </script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Firebase SDK v9 (compatibility mode for global variables) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script>
+        const firebaseConfig = {
+            apiKey: 'AIzaSyCy7xpmM0VMorZ_GPb6A5LOOr0TQVKy_fM',
+            authDomain: 'dental-clinic-manager-90780.firebaseapp.com',
+            projectId: 'dental-clinic-manager-90780',
+            storageBucket: 'dental-clinic-manager-90780.firebasestorage.app',
+            messagingSenderId: '79958386334',
+            appId: '1:79958386334:web:c1d60d26cb0fd1682c7d8f'
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        db.enablePersistence({ synchronizeTabs: true }).catch((err) => {
+            if (err.code === 'failed-precondition') {
+                console.warn('Offline persistence not enabled: multiple tabs open.');
+            } else if (err.code === 'unimplemented') {
+                console.warn('Offline persistence is not available in this browser.');
+            }
+        });
+    </script>
 </head>
 <body class="bg-gray-50 dark:bg-gray-900 min-h-screen transition-colors duration-300">
     <!-- Navigation Bar -->
@@ -319,13 +342,51 @@
         // One-time cleanup of old demo patient data
         //localStorage.removeItem('patients');
 
-        // Initialize data from localStorage
-        let patients = JSON.parse(localStorage.getItem('patients')) || [];
+        let patients = [];
+        let appointments = [];
 
         let currentPatientId = null;
         let editingAppointmentId = null;
         let sortColumn = 'name';
         let sortDirection = 'asc';
+
+        const patientsRef = db.collection('patients');
+        const appointmentsRef = db.collection('appointments');
+
+        function loadPatientsFromCache() {
+            return patientsRef.get({ source: 'cache' })
+                .then(snapshot => {
+                    patients = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    renderPatients();
+                })
+                .catch(() => {});
+        }
+
+        function listenPatients() {
+            patientsRef.onSnapshot((snapshot) => {
+                patients = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderPatients();
+            });
+        }
+
+        function loadAppointmentsFromCache() {
+            return appointmentsRef.get({ source: 'cache' })
+                .then(snapshot => {
+                    appointments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                })
+                .catch(() => {});
+        }
+
+        function listenAppointments() {
+            appointmentsRef.onSnapshot((snapshot) => {
+                appointments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            });
+        }
+
+        loadPatientsFromCache();
+        listenPatients();
+        loadAppointmentsFromCache();
+        listenAppointments();
 
         // Check if logged in
         if (localStorage.getItem('isLoggedIn') !== 'true') {
@@ -415,15 +476,15 @@
 
             empty.classList.add('hidden');
             tbody.innerHTML = filtered.map(p => `
-                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 cursor-pointer" onclick="viewPatient(${p.id})">
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 cursor-pointer" onclick="viewPatient('${p.id}')">
                     <td class="px-4 py-3 text-gray-800 dark:text-white">${p.firstName} ${p.lastName}</td>
                     <td class="px-4 py-3 text-gray-600 dark:text-gray-300">${p.phone || '-'}</td>
                     <td class="px-4 py-3 text-gray-600 dark:text-gray-300">${p.email || '-'}</td>
                     <td class="px-4 py-3 text-right">
-                        <button onclick="event.stopPropagation(); editPatient(${p.id})" class="px-3 py-1 bg-primary-500 hover:bg-primary-600 text-white text-sm rounded mr-1 transition-colors">
+                        <button onclick="event.stopPropagation(); editPatient('${p.id}')" class="px-3 py-1 bg-primary-500 hover:bg-primary-600 text-white text-sm rounded mr-1 transition-colors">
                             <i class="fas fa-edit"></i>
                         </button>
-                        <button onclick="event.stopPropagation(); deletePatient(${p.id})" class="px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-sm rounded transition-colors">
+                        <button onclick="event.stopPropagation(); deletePatient('${p.id}')" class="px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-sm rounded transition-colors">
                             <i class="fas fa-trash"></i>
                         </button>
                     </td>
@@ -467,10 +528,7 @@
             e.preventDefault();
             
             const editId = document.getElementById('patientForm').dataset.editId;
-            const newId = editId ? parseInt(editId) : (patients.length === 0 ? 1 : Math.max(...patients.map(p => p.id)) + 1);
-            
             const patient = {
-                id: newId,
                 firstName: document.getElementById('patientFirstName').value,
                 lastName: document.getElementById('patientLastName').value,
                 email: document.getElementById('patientEmail').value,
@@ -479,20 +537,14 @@
                 dob: document.getElementById('patientDOB').value,
                 allergies: document.getElementById('patientAllergies').value,
                 diagnoses: document.getElementById('patientDiagnoses').value,
-                notes: document.getElementById('patientNotes').value,
-                visits: editId ? (patients.find(p => p.id === parseInt(editId))?.visits || []) : []
+                notes: document.getElementById('patientNotes').value
             };
 
             if (editId) {
-                const index = patients.findIndex(p => p.id === parseInt(editId));
-                if (index !== -1) {
-                    patients[index] = patient;
-                }
+                patientsRef.doc(editId).update(patient);
             } else {
-                patients.push(patient);
+                patientsRef.add(patient);
             }
-
-            localStorage.setItem('patients', JSON.stringify(patients));
 
             closePatientModal();
             renderPatients();
@@ -501,9 +553,7 @@
 
         function deletePatient(id) {
             if (confirm('Are you sure you want to delete this patient?')) {
-                patients = patients.filter(p => p.id !== id);
-                localStorage.setItem('patients', JSON.stringify(patients));
-                renderPatients();
+                patientsRef.doc(id).delete();
             }
         }
 
@@ -561,11 +611,8 @@
             const tbody = document.getElementById('visitsTable');
             const empty = document.getElementById('visitsEmpty');
             
-            // Load all appointments from localStorage
-            const allAppointments = JSON.parse(localStorage.getItem('appointments')) || [];
-            
             // Filter appointments for this patient
-            const patientAppointments = allAppointments.filter(a => a.patientName === patientName);
+            const patientAppointments = appointments.filter(a => a.patientName === patientName);
 
             if (patientAppointments.length === 0) {
                 tbody.innerHTML = '';
@@ -583,10 +630,10 @@
                     <td class="px-3 py-2 text-gray-600 dark:text-gray-300">${v.note || '-'}</td>
                     <td class="px-3 py-2 text-gray-800 dark:text-white">${v.price ? '$' + parseFloat(v.price).toFixed(2) : '-'}</td>
                     <td class="px-3 py-2 text-right">
-                        <button onclick="editAppointmentFromPatient(${v.id})" class="px-2 py-1 bg-primary-500 hover:bg-primary-600 text-white text-xs rounded mr-1 transition-colors">
+                        <button onclick="editAppointmentFromPatient('${v.id}')" class="px-2 py-1 bg-primary-500 hover:bg-primary-600 text-white text-xs rounded mr-1 transition-colors">
                             <i class="fas fa-edit"></i>
                         </button>
-                        <button onclick="deleteAppointmentFromPatient(${v.id})" class="px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded transition-colors">
+                        <button onclick="deleteAppointmentFromPatient('${v.id}')" class="px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded transition-colors">
                             <i class="fas fa-trash"></i>
                         </button>
                     </td>
@@ -595,8 +642,7 @@
         }
 
         function editAppointmentFromPatient(appointmentId) {
-            const allAppointments = JSON.parse(localStorage.getItem('appointments')) || [];
-            const appointment = allAppointments.find(a => a.id === appointmentId);
+            const appointment = appointments.find(a => a.id === appointmentId);
             if (!appointment) return;
             
             editingAppointmentId = appointmentId;
@@ -614,33 +660,28 @@
             editingAppointmentId = null;
         }
         
-        document.getElementById('editAppointmentPatientForm').addEventListener('submit', function(e) {
+        document.getElementById('editAppointmentPatientForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
-            let allAppointments = JSON.parse(localStorage.getItem('appointments')) || [];
-            const index = allAppointments.findIndex(a => a.id === editingAppointmentId);
+            const appointmentData = {
+                note: document.getElementById('editApptNote').value,
+                price: parseFloat(document.getElementById('editApptPrice').value) || 0
+            };
             
-            if (index !== -1) {
-                allAppointments[index].note = document.getElementById('editApptNote').value;
-                allAppointments[index].price = parseFloat(document.getElementById('editApptPrice').value) || 0;
-                
-                localStorage.setItem('appointments', JSON.stringify(allAppointments));
-                
-                closeEditAppointmentPatientModal();
-                viewPatient(currentPatientId);
-                alert('Appointment updated!');
-            }
+            await db.collection('appointments').doc(editingAppointmentId).update(appointmentData);
+            
+            closeEditAppointmentPatientModal();
+            viewPatient(currentPatientId);
+            alert('Appointment updated!');
         });
 
         function deleteAppointmentFromPatient(appointmentId) {
             if (!confirm('Are you sure you want to delete this appointment?')) return;
             
-            let allAppointments = JSON.parse(localStorage.getItem('appointments')) || [];
-            allAppointments = allAppointments.filter(a => a.id !== appointmentId);
-            localStorage.setItem('appointments', JSON.stringify(allAppointments));
-            
-            closeEditAppointmentPatientModal();
-            viewPatient(currentPatientId);
+            db.collection('appointments').doc(appointmentId).delete().then(() => {
+                closeEditAppointmentPatientModal();
+                viewPatient(currentPatientId);
+            });
         }
 
         function closePatientDetailModal() {
@@ -656,11 +697,8 @@
             // Close patient detail modal
             closePatientDetailModal();
             
-            // Build patient name
-            const patientName = `${patient.firstName} ${patient.lastName}`.trim();
-            
-            // Redirect to appointments page with patient pre-selected
-            window.location.href = `appointments.html?patient=${encodeURIComponent(patientName)}`;
+            // Redirect to appointments page with patient pre-selected by ID
+            window.location.href = `appointments.html?patientId=${encodeURIComponent(patient.id)}`;
         }
 
         // Initialize

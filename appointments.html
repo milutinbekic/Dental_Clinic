@@ -29,6 +29,29 @@
         }
     </script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Firebase SDK v9 (compatibility mode for global variables) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script>
+        const firebaseConfig = {
+            apiKey: 'AIzaSyCy7xpmM0VMorZ_GPb6A5LOOr0TQVKy_fM',
+            authDomain: 'dental-clinic-manager-90780.firebaseapp.com',
+            projectId: 'dental-clinic-manager-90780',
+            storageBucket: 'dental-clinic-manager-90780.firebasestorage.app',
+            messagingSenderId: '79958386334',
+            appId: '1:79958386334:web:c1d60d26cb0fd1682c7d8f'
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        db.enablePersistence({ synchronizeTabs: true }).catch((err) => {
+            if (err.code === 'failed-precondition') {
+                console.warn('Offline persistence not enabled: multiple tabs open.');
+            } else if (err.code === 'unimplemented') {
+                console.warn('Offline persistence is not available in this browser.');
+            }
+        });
+    </script>
 </head>
 <body class="bg-gray-50 dark:bg-gray-900 min-h-screen transition-colors duration-300">
     <!-- Navigation Bar -->
@@ -209,15 +232,66 @@
         // ==================== DATA ====================
         let currentWeekOffset = 0;
         let editingAppointmentId = null;
+        let appointments = [];
+        let patients = [];
 
         // One-time cleanup of old demo patient data
         //localStorage.removeItem('patients');
 
-        // Initialize data from localStorage
-        let appointments = JSON.parse(localStorage.getItem('appointments')) || [];
-        
-        // Load patients from localStorage only
-        let patients = JSON.parse(localStorage.getItem('patients')) || [];
+        const appointmentsRef = db.collection('appointments');
+        const patientsRef = db.collection('patients');
+        const financesRef = db.collection('finances');
+
+        async function ensurePatientDocument(patientId, patientDoc) {
+            if (!patientId) return;
+            const patientRef = patientsRef.doc(patientId);
+            const snapshot = await patientRef.get();
+            if (!snapshot.exists) {
+                await patientRef.set(patientDoc || {
+                    firstName: '',
+                    lastName: '',
+                    email: '',
+                    phone: '',
+                    address: '',
+                    dob: '',
+                    allergies: '',
+                    diagnoses: '',
+                    notes: ''
+                });
+            }
+        }
+
+        function loadAppointmentsFromCache() {
+            return appointmentsRef.get({ source: 'cache' })
+                .then(snapshot => {
+                    appointments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    renderCalendar();
+                })
+                .catch(() => {});
+        }
+
+        function loadPatientsFromCache() {
+            return patientsRef.get({ source: 'cache' })
+                .then(snapshot => {
+                    patients = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                })
+                .catch(() => {});
+        }
+
+        function listenFirestore() {
+            appointmentsRef.onSnapshot((snapshot) => {
+                appointments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderCalendar();
+            });
+
+            patientsRef.onSnapshot((snapshot) => {
+                patients = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            });
+        }
+
+        loadAppointmentsFromCache();
+        loadPatientsFromCache();
+        listenFirestore();
 
         // Check if logged in
         if (localStorage.getItem('isLoggedIn') !== 'true') {
@@ -342,7 +416,7 @@
                                 }
                             }
                             return `<div class="text-xs px-2 py-1 mb-1 block w-full ${bgClass} text-white rounded cursor-pointer hover:opacity-90 whitespace-nowrap" 
-                                title="${a.patientName} - ${a.time}${a.price ? ' - $' + parseFloat(a.price).toFixed(2) : ''}" onclick="event.stopPropagation(); viewAppointment(${a.id})">
+                                title="${a.patientName} - ${a.time}${a.price ? ' - $' + parseFloat(a.price).toFixed(2) : ''}" onclick="event.stopPropagation(); viewAppointment('${a.id}')">
                                 ${a.patientName} - ${a.time}
                             </div>`;
                         }).join('');
@@ -387,20 +461,20 @@
             document.querySelector('#appointmentModal h3').textContent = 'New Appointment';
             document.getElementById('deleteAppointmentBtn').hidden = true;
 
-            // Build patient dropdown from localStorage patients (firstName + lastName)
+            // Build patient dropdown from Firestore patients (firstName + lastName)
             const select = document.getElementById('appointmentPatient');
             let patientOptions = '<option value="">Select patient</option>';
             patients.forEach(p => {
                 const fullName = `${p.firstName || ''} ${p.lastName || ''}`.trim();
-                patientOptions += `<option value="${fullName}">${fullName}</option>`;
+                patientOptions += `<option value="${p.id}">${fullName}</option>`;
             });
             select.innerHTML = patientOptions;
 
             // Check for patient from URL parameter (scheduling from patient card)
             const urlParams = new URLSearchParams(window.location.search);
-            const preselectedPatient = urlParams.get('patient');
-            if (preselectedPatient) {
-                select.value = preselectedPatient;
+            const preselectedPatientId = urlParams.get('patientId');
+            if (preselectedPatientId) {
+                select.value = preselectedPatientId;
                 // Clear the URL parameter after using it
                 window.history.replaceState({}, document.title, window.location.pathname);
             }
@@ -434,12 +508,12 @@
             document.querySelector('#appointmentModal h3').textContent = 'View/Edit Appointment';
             document.getElementById('deleteAppointmentBtn').hidden = false;
 
-            // Build patient dropdown from localStorage patients
+            // Build patient dropdown from Firestore patients
             const select = document.getElementById('appointmentPatient');
             let patientOptions = '<option value="">Select patient</option>';
             patients.forEach(p => {
                 const fullName = `${p.firstName || ''} ${p.lastName || ''}`.trim();
-                patientOptions += `<option value="${fullName}" ${fullName === appointment.patientName ? 'selected' : ''}>${fullName}</option>`;
+                patientOptions += `<option value="${p.id}" ${p.id === appointment.patientId ? 'selected' : ''}>${fullName}</option>`;
             });
             select.innerHTML = patientOptions;
 
@@ -465,88 +539,79 @@
             document.getElementById('appointmentModal').classList.add('hidden');
         }
 
-        function deleteAppointment() {
-            if (editingAppointmentId && confirm('Are you sure you want to delete this appointment?')) {
-                appointments = appointments.filter(a => a.id !== editingAppointmentId);
-                localStorage.setItem('appointments', JSON.stringify(appointments));
-                closeAppointmentModal();
-                renderCalendar();
-            }
+        async function deleteAppointment() {
+            if (!editingAppointmentId || !confirm('Are you sure you want to delete this appointment?')) return;
+
+            const appointmentRef = db.collection('appointments').doc(editingAppointmentId);
+            const financeSnapshot = await financesRef
+                .where('appointmentId', '==', editingAppointmentId)
+                .where('type', '==', 'income')
+                .get();
+
+            const batch = db.batch();
+            batch.delete(appointmentRef);
+            financeSnapshot.forEach(doc => batch.delete(doc.ref));
+            await batch.commit();
+
+            closeAppointmentModal();
         }
 
-        document.getElementById('appointmentForm').addEventListener('submit', function(e) {
+        document.getElementById('appointmentForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
+            const selectedPatientId = document.getElementById('appointmentPatient').value;
+            const selectedPatient = patients.find(p => p.id === selectedPatientId);
+            const appointmentPrice = parseFloat(document.getElementById('appointmentPrice').value) || 0;
             const appointmentData = {
-                patientName: document.getElementById('appointmentPatient').value,
+                patientId: selectedPatientId,
+                patientName: selectedPatient ? `${selectedPatient.firstName || ''} ${selectedPatient.lastName || ''}`.trim() : '',
                 date: document.getElementById('appointmentDate').value,
                 time: document.getElementById('appointmentTime').value,
-                price: document.getElementById('appointmentPrice').value,
+                price: appointmentPrice,
                 note: document.getElementById('appointmentNote').value
             };
 
+            await ensurePatientDocument(selectedPatientId, selectedPatient);
+
+            const financeData = {
+                patientId: selectedPatientId || null,
+                amount: appointmentPrice,
+                type: 'income',
+                category: 'Income',
+                note: appointmentData.note,
+                dateString: appointmentData.date,
+                appointmentId: editingAppointmentId || null
+            };
+
             if (editingAppointmentId) {
-                const index = appointments.findIndex(a => a.id === editingAppointmentId);
-                if (index !== -1) {
-                    appointments[index] = { ...appointments[index], ...appointmentData };
+                await db.collection('appointments').doc(editingAppointmentId).update(appointmentData);
+
+                const financeSnapshot = await financesRef
+                    .where('appointmentId', '==', editingAppointmentId)
+                    .where('type', '==', 'income')
+                    .get();
+
+                if (financeSnapshot.empty) {
+                    financeData.date = firebase.firestore.FieldValue.serverTimestamp();
+                    await financesRef.add(financeData);
+                } else {
+                    financeSnapshot.forEach(doc => doc.ref.update(financeData));
                 }
+
+                alert('Appointment updated!');
             } else {
-                appointmentData.id = Date.now();
-                appointments.push(appointmentData);
+                const appointmentRef = await db.collection('appointments').add(appointmentData);
+                financeData.appointmentId = appointmentRef.id;
+                financeData.date = firebase.firestore.FieldValue.serverTimestamp();
+                await financesRef.add(financeData);
+                alert('Appointment saved!');
             }
 
-            localStorage.setItem('appointments', JSON.stringify(appointments));
-
             closeAppointmentModal();
-            renderCalendar();
-            alert(editingAppointmentId ? 'Appointment updated!' : 'Appointment saved!');
         });
 
         // Initialize
         renderCalendar();
-    </script>
-    <!-- Firebase App (glavni SDK) -->
-    <script type="module">
-        console.log("1. Test - Da li se uopšte učitava?");
-        // 1. Uvozimo osnovni Firebase i Firestore (bazu)
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-firestore.js";
-
-        // 2. Tvoj lični config koji si upravo kopirao
-        const firebaseConfig = {
-            apiKey: "AIzaSyCy7xpmM0VMorZ_GPb6A5LOOr0TQVKy_fM",
-            authDomain: "dental-clinic-manager-90780.firebaseapp.com",
-            projectId: "dental-clinic-manager-90780",
-            storageBucket: "dental-clinic-manager-90780.firebasestorage.app",
-            messagingSenderId: "79958386334",
-            appId: "1:79958386334:web:c1d60d26cb0fd1682c7d8f"
-        };
-
-        // 3. Inicijalizacija
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-
-        // Čuvamo bazu u globalni prozor da bi tvoji dugmići mogli da je vide
-        window.db = db;
-
-        // 4. Glavna funkcija za dodavanje podataka (Income/Expense)
-        window.addTransaction = async function (type, amount, category) {
-            try {
-                const docRef = await addDoc(collection(window.db, "finances"), {
-                    type: type, // 'income' ili 'expense'
-                    amount: parseFloat(amount),
-                    category: category,
-                    date: serverTimestamp()
-                });
-                console.log("✅ Uspešno upisano u Firebase! ID:", docRef.id);
-                alert("Podatak je uspešno sačuvan u oblaku!");
-            } catch (e) {
-                console.error("❌ Greška pri upisu:", e);
-                alert("Došlo je do greške. Proveri konzolu.");
-            }
-        };
-
-        console.log("🚀 Firebase sistem spreman! Možeš kucati test komandu.");
     </script>
 </body>
 </html>
